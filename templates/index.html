@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KDP Notebook Generator</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --text: #e8eaf6;
+    --text2: #9ca3c9;
+    --accent: #6c63ff;
+    --accent2: #00e5a0;
+    --danger: #ff5252;
+    --success: #00e676;
+    --warning: #ffab40;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ─── Layout ─────────────────────────── */
+  .app {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    grid-template-rows: 56px 1fr;
+    grid-template-areas: "header header" "sidebar main";
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ─── Header ─────────────────────────── */
+  header {
+    grid-area: header;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 14px;
+    z-index: 10;
+  }
+
+  header .logo { font-size: 22px; }
+  header h1 { font-size: 15px; font-weight: 600; }
+  header .subtitle { font-size: 12px; color: var(--text2); margin-left: 4px; }
+  header .spacer { flex: 1; }
+  header .badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    color: var(--text2);
+  }
+
+  /* ─── Sidebar ─────────────────────────── */
+  .sidebar {
+    grid-area: sidebar;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-section {
+    border-bottom: 1px solid var(--border);
+    padding: 14px;
+  }
+
+  .sidebar-section h3 {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 10px;
+  }
+
+  /* Profession cards */
+  .profession-list { display: flex; flex-direction: column; gap: 4px; }
+
+  .profession-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+  }
+
+  .profession-card:hover { background: var(--surface2); }
+  .profession-card.active {
+    border-color: var(--accent);
+    background: rgba(108,99,255,0.12);
+  }
+  .profession-card.selected-gen {
+    border-color: var(--accent2) !important;
+    background: rgba(0,229,160,0.08) !important;
+  }
+  .profession-card .emoji { font-size: 18px; width: 28px; text-align: center; }
+  .profession-card .info { flex: 1; min-width: 0; }
+  .profession-card .info .name { font-size: 13px; font-weight: 500; }
+  .profession-card .info .sub { font-size: 10px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .profession-card .check {
+    width: 16px; height: 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .profession-card.selected-gen .check {
+    background: var(--accent2);
+    border-color: var(--accent2);
+    color: #000;
+  }
+
+  .select-all-row {
+    display: flex; gap: 6px; margin-bottom: 8px;
+  }
+  .btn-xs {
+    flex: 1; padding: 5px; font-size: 10px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--text2); border-radius: 6px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-xs:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Options */
+  .option-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 0; font-size: 12px;
+  }
+  .toggle {
+    position: relative; width: 34px; height: 18px;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute; inset: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    transition: all 0.2s;
+  }
+  .toggle-thumb {
+    position: absolute; width: 12px; height: 12px;
+    background: var(--text2);
+    border-radius: 50%; top: 2px; left: 2px;
+    transition: all 0.2s;
+  }
+  .toggle input:checked ~ .toggle-track { background: var(--accent); border-color: var(--accent); }
+  .toggle input:checked ~ .toggle-thumb { transform: translateX(16px); background: #fff; }
+
+  /* Generate button */
+  .generate-wrap { padding: 14px; }
+  .btn-generate {
+    width: 100%; padding: 12px;
+    background: linear-gradient(135deg, var(--accent), #a78bfa);
+    color: #fff; font-size: 14px; font-weight: 700;
+    border: none; border-radius: 10px; cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-generate:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(108,99,255,0.4); }
+  .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ─── Main area ─────────────────────────── */
+  .main {
+    grid-area: main;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ─── Tabs ─────────────────────────── */
+  .tabs {
+    display: flex; gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    width: fit-content;
+  }
+
+  .tab {
+    padding: 7px 16px; font-size: 12px; font-weight: 600;
+    border-radius: 7px; cursor: pointer;
+    color: var(--text2); border: none; background: none;
+    transition: all 0.15s;
+  }
+  .tab.active { background: var(--accent); color: #fff; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ─── Editor panel ─────────────────────────── */
+  .editor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  .card h4 {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text2); margin-bottom: 12px;
+  }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+
+  .field input[type=text],
+  .field input[type=number],
+  .field select,
+  .field textarea {
+    width: 100%; padding: 7px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text); font-size: 12px;
+    border-radius: 7px; outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input:focus,
+  .field select:focus,
+  .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 60px; }
+
+  .color-row {
+    display: flex; gap: 10px; align-items: center;
+  }
+  .color-row label { font-size: 11px; color: var(--text2); width: 80px; flex-shrink: 0; }
+  .color-pick-wrap {
+    display: flex; gap: 6px; align-items: center; flex: 1;
+  }
+  .color-pick-wrap input[type=color] {
+    width: 32px; height: 28px; padding: 1px;
+    border: 1px solid var(--border);
+    border-radius: 6px; background: var(--surface2);
+    cursor: pointer;
+  }
+  .color-pick-wrap input[type=text] {
+    flex: 1; padding: 5px 8px; font-size: 11px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px;
+  }
+
+  /* Preview */
+  .preview-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .preview-card h4 {
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text2); margin-bottom: 14px;
+  }
+  .cover-preview {
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .cover-face {
+    width: 140px; height: 210px;
+    border-radius: 4px; overflow: hidden;
+    position: relative; flex-shrink: 0;
+    box-shadow: 4px 6px 20px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column;
+  }
+  .cover-spine {
+    width: 18px; height: 210px;
+    border-radius: 3px 0 0 3px;
+    flex-shrink: 0;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.3);
+  }
+  .cover-info { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .cover-info .ci-row { display: flex; gap: 6px; align-items: center; font-size: 11px; }
+  .color-swatch {
+    width: 16px; height: 16px; border-radius: 3px;
+    display: inline-block; vertical-align: middle;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  /* Page specs */
+  .specs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  /* ─── Progress panel ─────────────────────────── */
+  .progress-wrap { display: none; }
+  .progress-wrap.visible { display: block; }
+
+  .progress-bar-outer {
+    height: 8px; background: var(--surface2);
+    border-radius: 4px; overflow: hidden; margin-bottom: 12px;
+    border: 1px solid var(--border);
+  }
+  .progress-bar-inner {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+
+  .log-area {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 12px;
+    color: var(--text2);
+    max-height: 220px;
+    overflow-y: auto;
+    line-height: 1.7;
+  }
+  .log-area .log-ok { color: var(--success); }
+  .log-area .log-err { color: var(--danger); }
+  .log-area .log-step { color: var(--accent2); }
+  .log-area .log-sub { color: var(--text2); }
+
+  /* ─── Files panel ─────────────────────────── */
+  .files-grid { display: flex; flex-direction: column; gap: 12px; }
+
+  .notebook-group { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  .notebook-group-header {
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .notebook-group-header .ng-emoji { font-size: 18px; }
+  .notebook-group-header .ng-name { font-size: 13px; font-weight: 600; flex: 1; }
+  .notebook-group-header .ng-count { font-size: 11px; color: var(--text2); }
+  .notebook-group-files { padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .file-chip {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  .file-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .file-chip .fc-icon { font-size: 14px; }
+  .file-chip .fc-size { color: var(--text2); }
+
+  .badge-cover { background: rgba(108,99,255,0.15); border-color: rgba(108,99,255,0.3); }
+  .badge-interior { background: rgba(0,229,160,0.08); border-color: rgba(0,229,160,0.3); }
+  .badge-mockup { background: rgba(255,171,64,0.1); border-color: rgba(255,171,64,0.3); }
+
+  /* ─── Empty states ─────────────────────────── */
+  .empty-state {
+    text-align: center; padding: 48px 20px; color: var(--text2);
+  }
+  .empty-state .es-icon { font-size: 42px; margin-bottom: 12px; }
+  .empty-state p { font-size: 13px; }
+
+  /* ─── Slider ─────────────────────────── */
+  .slider-wrap { display: flex; align-items: center; gap: 10px; }
+  .slider-wrap input[type=range] {
+    flex: 1; accent-color: var(--accent); cursor: pointer;
+  }
+  .slider-val {
+    min-width: 40px; text-align: right;
+    font-size: 12px; color: var(--accent2);
+    font-weight: 600;
+  }
+
+  /* ─── Toast ─────────────────────────── */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 13px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    z-index: 1000;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    max-width: 300px;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.ok { border-color: var(--success); color: var(--success); }
+  #toast.err { border-color: var(--danger); color: var(--danger); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ─── Header ─────────────────────────── -->
+  <header>
+    <span class="logo">📓</span>
+    <h1>KDP Notebook Generator</h1>
+    <span class="subtitle">Notatniki Zawodowe</span>
+    <div class="spacer"></div>
+    <span class="badge" id="sel-count">0 wybranych</span>
+    <span class="badge">10 zawodów</span>
+  </header>
+
+  <!-- ─── Sidebar ─────────────────────────── -->
+  <aside class="sidebar">
+
+    <!-- Profession list -->
+    <div class="sidebar-section">
+      <h3>Wybierz zawody do generowania</h3>
+      <div class="select-all-row">
+        <button class="btn-xs" onclick="selectAll()">Zaznacz wszystkie</button>
+        <button class="btn-xs" onclick="selectNone()">Odznacz</button>
+      </div>
+      <div class="profession-list" id="profession-list">
+        <!-- injected by JS -->
+      </div>
+    </div>
+
+    <!-- Generation options -->
+    <div class="sidebar-section">
+      <h3>Opcje generowania</h3>
+      <div class="option-row">
+        <span>Generuj okładkę</span>
+        <label class="toggle">
+          <input type="checkbox" id="opt-cover" checked>
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div class="option-row">
+        <span>Generuj wnętrze</span>
+        <label class="toggle">
+          <input type="checkbox" id="opt-interior" checked>
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+      <div class="option-row">
+        <span>Generuj mockup</span>
+        <label class="toggle">
+          <input type="checkbox" id="opt-mockup" checked>
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Generate button -->
+    <div class="generate-wrap">
+      <button class="btn-generate" id="btn-generate" onclick="startGeneration()">
+        <span>⚡</span> Generuj zeszyty
+      </button>
+    </div>
+
+  </aside>
+
+  <!-- ─── Main ─────────────────────────── -->
+  <main class="main">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('editor')">✏️ Edytor parametrów</button>
+      <button class="tab" onclick="showTab('progress')">⚙️ Generowanie</button>
+      <button class="tab" onclick="showTab('files')">📂 Pliki</button>
+    </div>
+
+    <!-- ─── Editor tab ─────────────────────────── -->
+    <div class="tab-panel active" id="tab-editor">
+
+      <!-- Preview -->
+      <div class="preview-card" style="margin-bottom:16px">
+        <h4>Podgląd okładki</h4>
+        <div class="cover-preview">
+          <div class="cover-spine" id="prev-spine"></div>
+          <div class="cover-face" id="prev-face">
+            <div id="prev-band" style="display:flex;align-items:center;padding:12px 10px;gap:8px;flex-shrink:0;">
+              <div>
+                <div id="prev-title" style="font-size:12px;font-weight:700;color:#fff;line-height:1.3;"></div>
+                <div id="prev-sub" style="font-size:9px;margin-top:2px;"></div>
+              </div>
+              <div id="prev-emoji" style="font-size:28px;margin-left:auto;"></div>
+            </div>
+            <div id="prev-body" style="flex:1;padding:10px;display:flex;flex-direction:column;gap:6px;">
+              <div id="prev-features" style="font-size:9px;color:#ccc;line-height:1.8;"></div>
+            </div>
+            <div id="prev-footer" style="padding:5px 10px;">
+              <div style="font-size:8px;color:rgba(255,255,255,0.5);text-align:center;">Notatniki Zawodowe • 120 stron • 6×9"</div>
+            </div>
+          </div>
+          <div class="cover-info">
+            <div class="ci-row">
+              <span class="color-swatch" id="swatch-primary"></span>
+              <span>Kolor główny</span>
+            </div>
+            <div class="ci-row">
+              <span class="color-swatch" id="swatch-accent"></span>
+              <span>Akcent</span>
+            </div>
+            <div class="ci-row">
+              <span class="color-swatch" id="swatch-bg"></span>
+              <span>Tło okładki</span>
+            </div>
+            <div style="margin-top:8px;font-size:10px;color:var(--text2);">
+              Format: 6" × 9"<br>
+              Bleed: 0.125"<br>
+              <span id="prev-pages">120 stron</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-grid">
+
+        <!-- Text settings -->
+        <div class="card">
+          <h4>Tekst okładki</h4>
+          <div class="field">
+            <label>Tytuł (tagline)</label>
+            <input type="text" id="edit-tagline" placeholder="Notatnik Programisty">
+          </div>
+          <div class="field">
+            <label>Podtytuł</label>
+            <input type="text" id="edit-subtitle" placeholder="Kod, algorytmy i rozwiązania">
+          </div>
+        </div>
+
+        <!-- Color settings -->
+        <div class="card">
+          <h4>Kolory</h4>
+          <div class="color-row">
+            <label>Kolor główny</label>
+            <div class="color-pick-wrap">
+              <input type="color" id="cp-primary" oninput="onColorPick('primary',this.value)">
+              <input type="text" id="ct-primary" placeholder="#3D7FFF" oninput="onColorText('primary',this.value)">
+            </div>
+          </div>
+          <div style="margin:8px 0"></div>
+          <div class="color-row">
+            <label>Akcent</label>
+            <div class="color-pick-wrap">
+              <input type="color" id="cp-accent" oninput="onColorPick('accent',this.value)">
+              <input type="text" id="ct-accent" placeholder="#00E5A0" oninput="onColorText('accent',this.value)">
+            </div>
+          </div>
+          <div style="margin:8px 0"></div>
+          <div class="color-row">
+            <label>Tło okładki</label>
+            <div class="color-pick-wrap">
+              <input type="color" id="cp-bg" oninput="onColorPick('cover_bg',this.value)">
+              <input type="text" id="ct-bg" placeholder="#0F0F23" oninput="onColorText('cover_bg',this.value)">
+            </div>
+          </div>
+        </div>
+
+        <!-- Page settings -->
+        <div class="card">
+          <h4>Parametry stron</h4>
+          <div class="field">
+            <label>Liczba stron (parzysta, min 24)</label>
+            <div class="slider-wrap">
+              <input type="range" id="pages-slider" min="24" max="400" step="2" value="120"
+                     oninput="onPagesChange(this.value)">
+              <span class="slider-val" id="pages-val">120</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Odstęp między liniami (cale)</label>
+            <div class="slider-wrap">
+              <input type="range" id="spacing-slider" min="0.2" max="0.6" step="0.05" value="0.3"
+                     oninput="onSpacingChange(this.value)">
+              <span class="slider-val" id="spacing-val">0.30"</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reset -->
+        <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <h4>Akcje</h4>
+          <p style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:12px;">
+            Ustawienia są zapisywane per-zawód i zostaną użyte przy następnym generowaniu.
+          </p>
+          <button class="btn-xs" style="width:100%;padding:8px;font-size:12px;" onclick="resetCurrentTheme()">
+            ↺ Przywróć domyślne dla tego zawodu
+          </button>
+          <div style="margin-top:8px"></div>
+          <button class="btn-xs" style="width:100%;padding:8px;font-size:12px;" onclick="copyThemeTo()">
+            ⧉ Kopiuj ustawienia do innych zawodów
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── Progress tab ─────────────────────────── -->
+    <div class="tab-panel" id="tab-progress">
+      <div class="card" id="progress-idle">
+        <div class="empty-state">
+          <div class="es-icon">⚡</div>
+          <p>Wybierz zawody i kliknij "Generuj zeszyty"<br>aby rozpocząć generowanie.</p>
+        </div>
+      </div>
+
+      <div class="card progress-wrap" id="progress-active">
+        <h4>Postęp generowania</h4>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:6px;">
+          <span id="prog-label">Inicjalizacja...</span>
+          <span id="prog-pct">0%</span>
+        </div>
+        <div class="progress-bar-outer">
+          <div class="progress-bar-inner" id="prog-bar"></div>
+        </div>
+        <div class="log-area" id="log-area"></div>
+
+        <!-- Result files inline -->
+        <div id="result-files" style="margin-top:14px;display:none;">
+          <h4 style="margin-bottom:10px;">Wygenerowane pliki</h4>
+          <div id="result-files-list" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Files tab ─────────────────────────── -->
+    <div class="tab-panel" id="tab-files">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span style="font-size:12px;color:var(--text2);" id="files-summary">Ładowanie...</span>
+        <button class="btn-xs" style="width:auto;padding:6px 14px;" onclick="loadFiles()">⟳ Odśwież</button>
+      </div>
+      <div class="files-grid" id="files-grid">
+        <div class="empty-state">
+          <div class="es-icon">📂</div>
+          <p>Brak wygenerowanych plików.<br>Wygeneruj zeszyty aby zobaczyć pliki tutaj.</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────
+let themes = {};
+let professionOrder = [];
+let selectedForGen = new Set();
+let activeTheme = null;
+let overrides = {};  // { themeKey: { tagline, subtitle, primary, accent, cover_bg, total_pages, line_spacing } }
+let currentJobId = null;
+let eventSource = null;
+
+// ─── Init ─────────────────────────────────────────────────────────────
+async function init() {
+  const res = await fetch('/api/themes');
+  themes = await res.json();
+  professionOrder = Object.keys(themes);  // server order
+
+  renderProfessionList();
+  selectAll();
+  setActiveTheme(professionOrder[0]);
+  loadFiles();
+}
+
+// ─── Profession list ──────────────────────────────────────────────────
+function renderProfessionList() {
+  const list = document.getElementById('profession-list');
+  list.innerHTML = '';
+  professionOrder.forEach(key => {
+    const t = themes[key];
+    const card = document.createElement('div');
+    card.className = 'profession-card';
+    card.dataset.key = key;
+    card.innerHTML = `
+      <span class="emoji">${t.emoji}</span>
+      <div class="info">
+        <div class="name">${t.name_pl}</div>
+        <div class="sub">${t.tagline}</div>
+      </div>
+      <div class="check" id="chk-${key}">✓</div>
+    `;
+    card.addEventListener('click', (e) => {
+      // Ctrl/Cmd click = toggle selection only
+      if (e.ctrlKey || e.metaKey) {
+        toggleSelected(key);
+      } else {
+        setActiveTheme(key);
+      }
+    });
+    card.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      toggleSelected(key);
+    });
+    list.appendChild(card);
+  });
+}
+
+function setActiveTheme(key) {
+  activeTheme = key;
+  document.querySelectorAll('.profession-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.key === key);
+  });
+  loadEditorForTheme(key);
+}
+
+function toggleSelected(key) {
+  if (selectedForGen.has(key)) {
+    selectedForGen.delete(key);
+  } else {
+    selectedForGen.add(key);
+  }
+  updateSelectionUI();
+}
+
+function selectAll() {
+  professionOrder.forEach(k => selectedForGen.add(k));
+  updateSelectionUI();
+}
+
+function selectNone() {
+  selectedForGen.clear();
+  updateSelectionUI();
+}
+
+function updateSelectionUI() {
+  professionOrder.forEach(key => {
+    const card = document.querySelector(`.profession-card[data-key="${key}"]`);
+    const chk = document.getElementById(`chk-${key}`);
+    if (!card) return;
+    const sel = selectedForGen.has(key);
+    card.classList.toggle('selected-gen', sel);
+    chk.textContent = sel ? '✓' : '';
+  });
+  document.getElementById('sel-count').textContent = `${selectedForGen.size} wybranych`;
+}
+
+// ─── Editor ───────────────────────────────────────────────────────────
+function loadEditorForTheme(key) {
+  const t = themes[key];
+  const ov = overrides[key] || {};
+
+  document.getElementById('edit-tagline').value = ov.tagline ?? t.tagline;
+  document.getElementById('edit-subtitle').value = ov.subtitle ?? t.subtitle;
+
+  const primary = ov.primary ?? t.primary;
+  const accent = ov.accent ?? t.accent;
+  const bg = ov.cover_bg ?? t.cover_bg;
+
+  setColorField('primary', rgbToHex(primary));
+  setColorField('accent', rgbToHex(accent));
+  setColorField('cover_bg', rgbToHex(bg));
+
+  const pages = ov.total_pages ?? 120;
+  const spacing = ov.line_spacing ?? 0.3;
+  document.getElementById('pages-slider').value = pages;
+  document.getElementById('pages-val').textContent = pages;
+  document.getElementById('spacing-slider').value = spacing;
+  document.getElementById('spacing-val').textContent = spacing.toFixed(2) + '"';
+
+  updatePreview();
+
+  // Auto-save on change
+  ['edit-tagline','edit-subtitle'].forEach(id => {
+    document.getElementById(id).oninput = () => saveCurrentEdits();
+  });
+}
+
+function saveCurrentEdits() {
+  if (!activeTheme) return;
+  if (!overrides[activeTheme]) overrides[activeTheme] = {};
+  const ov = overrides[activeTheme];
+  ov.tagline = document.getElementById('edit-tagline').value;
+  ov.subtitle = document.getElementById('edit-subtitle').value;
+  updatePreview();
+  // Update sidebar subtitle
+  const card = document.querySelector(`.profession-card[data-key="${activeTheme}"] .sub`);
+  if (card) card.textContent = ov.tagline;
+}
+
+function onColorPick(field, hex) {
+  if (!activeTheme) return;
+  if (!overrides[activeTheme]) overrides[activeTheme] = {};
+  overrides[activeTheme][field] = hexToRgb(hex);
+  document.getElementById(`ct-${field === 'cover_bg' ? 'bg' : field}`).value = hex;
+  updatePreview();
+}
+
+function onColorText(field, hex) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return;
+  document.getElementById(`cp-${field === 'cover_bg' ? 'bg' : field}`).value = hex;
+  onColorPick(field, hex);
+}
+
+function setColorField(field, hex) {
+  const suffix = field === 'cover_bg' ? 'bg' : field;
+  document.getElementById(`cp-${suffix}`).value = hex;
+  document.getElementById(`ct-${suffix}`).value = hex;
+}
+
+function onPagesChange(val) {
+  document.getElementById('pages-val').textContent = val;
+  if (!activeTheme) return;
+  if (!overrides[activeTheme]) overrides[activeTheme] = {};
+  overrides[activeTheme].total_pages = parseInt(val);
+  document.getElementById('prev-pages').textContent = val + ' stron';
+}
+
+function onSpacingChange(val) {
+  document.getElementById('spacing-val').textContent = parseFloat(val).toFixed(2) + '"';
+  if (!activeTheme) return;
+  if (!overrides[activeTheme]) overrides[activeTheme] = {};
+  overrides[activeTheme].line_spacing = parseFloat(val);
+}
+
+function resetCurrentTheme() {
+  if (!activeTheme) return;
+  delete overrides[activeTheme];
+  loadEditorForTheme(activeTheme);
+  toast('Przywrócono domyślne ustawienia', 'ok');
+}
+
+function copyThemeTo() {
+  if (!activeTheme || !overrides[activeTheme]) {
+    toast('Brak zmian do skopiowania', 'err'); return;
+  }
+  const src = overrides[activeTheme];
+  professionOrder.forEach(k => {
+    if (k !== activeTheme) {
+      overrides[k] = { ...overrides[k], ...src };
+    }
+  });
+  toast('Skopiowano kolory i tekst do wszystkich zawodów', 'ok');
+}
+
+// ─── Preview ──────────────────────────────────────────────────────────
+function updatePreview() {
+  if (!activeTheme) return;
+  const t = themes[activeTheme];
+  const ov = overrides[activeTheme] || {};
+
+  const primary = ov.primary ?? t.primary;
+  const accent = ov.accent ?? t.accent;
+  const bg = ov.cover_bg ?? t.cover_bg;
+  const tagline = ov.tagline ?? t.tagline;
+  const subtitle = ov.subtitle ?? t.subtitle;
+
+  const primaryHex = rgbToHex(primary);
+  const accentHex = rgbToHex(accent);
+  const bgHex = rgbToHex(bg);
+
+  document.getElementById('prev-face').style.background = bgHex;
+  document.getElementById('prev-band').style.background = primaryHex;
+  document.getElementById('prev-spine').style.background = primaryHex;
+  document.getElementById('prev-sub').style.color = accentHex;
+
+  const words = tagline.split(' ');
+  const mid = Math.ceil(words.length / 2);
+  document.getElementById('prev-title').textContent = tagline;
+  document.getElementById('prev-sub').textContent = subtitle;
+  document.getElementById('prev-emoji').textContent = t.emoji;
+
+  document.getElementById('prev-features').innerHTML =
+    `✓ 120 stron w formacie 6×9"<br>✓ 5 stron tematycznych<br>✓ 115 stron w linie`;
+  document.getElementById('prev-footer').style.background = rgbDarken(primary, 0.3);
+
+  document.getElementById('swatch-primary').style.background = primaryHex;
+  document.getElementById('swatch-accent').style.background = accentHex;
+  document.getElementById('swatch-bg').style.background = bgHex;
+}
+
+// ─── Generation ───────────────────────────────────────────────────────
+async function startGeneration() {
+  if (selectedForGen.size === 0) {
+    toast('Wybierz przynajmniej jeden zawód', 'err'); return;
+  }
+
+  const btn = document.getElementById('btn-generate');
+  btn.disabled = true;
+
+  const payload = {
+    themes: Array.from(selectedForGen),
+    overrides: overrides,
+    options: {
+      generate_cover: document.getElementById('opt-cover').checked,
+      generate_interior: document.getElementById('opt-interior').checked,
+      generate_mockup: document.getElementById('opt-mockup').checked,
+    }
+  };
+
+  const res = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const { job_id } = await res.json();
+  currentJobId = job_id;
+
+  showTab('progress');
+  startProgressStream(job_id);
+}
+
+function startProgressStream(job_id) {
+  const idle = document.getElementById('progress-idle');
+  const active = document.getElementById('progress-active');
+  idle.style.display = 'none';
+  active.classList.add('visible');
+
+  const logArea = document.getElementById('log-area');
+  const progBar = document.getElementById('prog-bar');
+  const progPct = document.getElementById('prog-pct');
+  const progLabel = document.getElementById('prog-label');
+  const resultFiles = document.getElementById('result-files');
+  const resultList = document.getElementById('result-files-list');
+
+  logArea.innerHTML = '';
+  resultFiles.style.display = 'none';
+  resultList.innerHTML = '';
+
+  if (eventSource) eventSource.close();
+
+  eventSource = new EventSource(`/api/job/${job_id}/stream`);
+  eventSource.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+
+    // Progress bar
+    progBar.style.width = data.progress + '%';
+    progPct.textContent = data.progress + '%';
+
+    // Log messages
+    data.messages.forEach(msg => {
+      const div = document.createElement('div');
+      if (msg.startsWith('✅')) div.className = 'log-ok';
+      else if (msg.startsWith('❌')) div.className = 'log-err';
+      else if (msg.startsWith('▶')) div.className = 'log-step';
+      else div.className = 'log-sub';
+      div.textContent = msg;
+      logArea.appendChild(div);
+      logArea.scrollTop = logArea.scrollHeight;
+    });
+
+    if (data.messages.length > 0) {
+      progLabel.textContent = data.messages[data.messages.length - 1].replace(/[▶✅❌→]/g, '').trim();
+    }
+
+    if (data.status === 'done') {
+      eventSource.close();
+      document.getElementById('btn-generate').disabled = false;
+      progLabel.textContent = 'Generowanie zakończone!';
+
+      // Show result files
+      if (data.files && data.files.length > 0) {
+        resultFiles.style.display = 'block';
+        data.files.forEach(f => {
+          const icon = f.type === 'cover' ? '📄' : f.type === 'interior' ? '📝' : '🖼️';
+          const cls = f.type === 'cover' ? 'badge-cover' : f.type === 'interior' ? 'badge-interior' : 'badge-mockup';
+          const a = document.createElement('a');
+          a.className = `file-chip ${cls}`;
+          a.href = `/api/download/${f.rel}`;
+          a.innerHTML = `<span class="fc-icon">${icon}</span><span>${f.name}</span><span class="fc-size">${f.size_kb}KB</span>`;
+          resultList.appendChild(a);
+        });
+      }
+
+      toast(`Wygenerowano ${new Set(data.files.map(f=>f.theme)).size} zeszyt(y)!`, 'ok');
+      loadFiles();
+    }
+
+    if (data.status === 'error') {
+      eventSource.close();
+      document.getElementById('btn-generate').disabled = false;
+      toast('Błąd generowania: ' + data.error, 'err');
+    }
+  };
+}
+
+// ─── Files ────────────────────────────────────────────────────────────
+async function loadFiles() {
+  const res = await fetch('/api/files');
+  const groups = await res.json();
+  const grid = document.getElementById('files-grid');
+  const summary = document.getElementById('files-summary');
+
+  if (!groups.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="es-icon">📂</div><p>Brak wygenerowanych plików.<br>Wygeneruj zeszyty aby zobaczyć pliki tutaj.</p></div>`;
+    summary.textContent = 'Brak plików';
+    return;
+  }
+
+  let totalFiles = 0;
+  grid.innerHTML = '';
+
+  groups.forEach(group => {
+    const key = group.folder.replace(/^\d+_/, '');
+    const t = themes[key] || {};
+    totalFiles += group.files.length;
+
+    const div = document.createElement('div');
+    div.className = 'notebook-group';
+    div.innerHTML = `
+      <div class="notebook-group-header">
+        <span class="ng-emoji">${t.emoji || '📓'}</span>
+        <span class="ng-name">${t.name_pl || group.folder}</span>
+        <span class="ng-count">${group.files.length} pliki</span>
+      </div>
+      <div class="notebook-group-files">
+        ${group.files.map(f => {
+          const icon = f.type === 'cover' ? '📄' : f.type === 'interior' ? '📝' : '🖼️';
+          const cls = f.type === 'cover' ? 'badge-cover' : f.type === 'interior' ? 'badge-interior' : 'badge-mockup';
+          return `<a class="file-chip ${cls}" href="/api/download/${f.rel_path}">
+            <span class="fc-icon">${icon}</span>
+            <span>${f.name}</span>
+            <span class="fc-size">${f.size_kb} KB</span>
+          </a>`;
+        }).join('')}
+      </div>
+    `;
+    grid.appendChild(div);
+  });
+
+  summary.textContent = `${groups.length} notatnik(ów) • ${totalFiles} pliki`;
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const names = ['editor','progress','files'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.classList.toggle('active', p.id === `tab-${name}`);
+  });
+  if (name === 'files') loadFiles();
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────
+function rgbToHex(rgb) {
+  if (!rgb || !Array.isArray(rgb)) return '#888888';
+  return '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return [r, g, b];
+}
+function rgbDarken(rgb, factor) {
+  const arr = Array.isArray(rgb) ? rgb : hexToRgb(rgb);
+  return `rgb(${arr.map(v => Math.max(0, Math.round(v * (1 - factor)))).join(',')})`;
+}
+
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  setTimeout(() => el.className = '', 3000);
+}
+
+// ─── Start ─────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
